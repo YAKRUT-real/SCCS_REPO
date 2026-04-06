@@ -1,6 +1,6 @@
 #include "lib.h"
 #include <stdio.h>
-
+//commentary
 int main()
 {
         Triangle test = {0, 0, 0};
