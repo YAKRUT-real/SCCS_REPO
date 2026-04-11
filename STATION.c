@@ -1,5 +1,6 @@
 //A0 20 A6 11 C7 33 - slave, DHT_22. weak.
-//4apr. 
+//4apr. DD.
+//22apr - DEADLINE.
 //E8:68:E7:C7:DC:D0 - microusb slave
 //0x40, 0xF5,0x20,0x32,0xCB,0xED - wtf, is it me??
 #include <ESP8266WiFi.h>
@@ -10,36 +11,14 @@
 #include <EEPROM.h>
 #define EEPROM_SIZE 512
 #define MACS_START 0
+#define TOOLS_ADDR 100 
 #define SCREEN_WIDTH 128
 #define SCREEN_HEIGHT 64
 #define OLED_RESET -1
 #define UP D5
 #define SELECT D6
 #define DOWN D7
-
-void saveMACs() {
-    EEPROM.begin(EEPROM_SIZE);
-    for (int i = 0; i < tools; i++) {
-        int addr = MACS_START + i * 6;
-        for (int j = 0; j < 6; j++) {
-            EEPROM.write(addr + j, broadcastAddress[i][j]);
-        }
-    }
-    EEPROM.commit();
-    EEPROM.end();
-}
-
-void loadMACs() {
-    EEPROM.begin(EEPROM_SIZE);
-    for (int i = 0; i < tools; i++) {
-        int addr = MACS_START + i * 6;
-        for (int j = 0; j < 6; j++) {
-            broadcastAddress[i][j] = EEPROM.read(addr + j);
-        }
-    }
-    EEPROM.end();
-}
-
+unsigned char tools;
 typedef struct received_struct {
   double ts;
   double press;
@@ -61,7 +40,7 @@ unsigned char chosen = 0;
 short int screen = 0;
 short int temperature = 24;
 short int humidity = 80;
-short int min_temp = 99;
+short int min_temp = -99;
 short int max_temp = 99;
 unsigned char capt = 3;
 unsigned long lastActionTime = 0;
@@ -75,13 +54,42 @@ uint8_t broadcastAddress3[] = {0xE8,0x68,0xE7,0xC7,0xDC,0xD0};
 uint8_t broadcastAddress4[] = {0xA0, 0x20, 0xA6, 0x11, 0xC7, 0x33};
 uint8_t broadcastAddress5[] = {0x40, 0xF5, 0x20, 0x32, 0xCB, 0xED};
 uint8_t broadcastAddress6[] = {0xA0, 0x20, 0xA6, 0x11, 0xC7, 0x33};
-
 uint8_t* broadcastAddress[] = {broadcastAddress1, broadcastAddress2,
                               broadcastAddress3, broadcastAddress4,
                               broadcastAddress5, broadcastAddress6};
 
-unsigned char tools = 3;
+
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
+
+void saveMACs() {
+    EEPROM.begin(EEPROM_SIZE);
+    EEPROM.write(TOOLS_ADDR, tools);
+    for (int i = 0; i < tools; i++) {
+        int addr = MACS_START + i * 6;
+        for (int j = 0; j < 6; j++) {
+            EEPROM.write(addr + j, broadcastAddress[i][j]);
+        }
+    }
+    EEPROM.commit();
+    EEPROM.end();
+}
+
+void loadMACs() {
+    EEPROM.begin(EEPROM_SIZE);
+    tools = EEPROM.read(TOOLS_ADDR);
+    if (tools == 0xFF || tools > 6) {
+        tools = 3;
+        EEPROM.end();
+        return;
+    }
+    for (int i = 0; i < tools; i++) {
+        int addr = MACS_START + i * 6;
+        for (int j = 0; j < 6; j++) {
+            broadcastAddress[i][j] = EEPROM.read(addr + j);
+        }
+    }
+    EEPROM.end();
+}
 
 void OnDataRecv(uint8_t * mac, uint8_t *incomingData, uint8_t len) {
   if (len == sizeof(receivedData)) {
@@ -265,9 +273,9 @@ bool buttonPressed(int pin) {
 void setup() {
   Serial.begin(115200);
   if(!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) {
-    Serial.println("Display init failed!");
     while(1);
   }
+  randomSeed(millis() + analogRead(A0));
   display.clearDisplay();
   display.setTextSize(1);
   display.setTextColor(SSD1306_WHITE);
@@ -282,7 +290,6 @@ void setup() {
   pinMode(DOWN, INPUT_PULLUP);
   WiFi.mode(WIFI_STA);
   if (esp_now_init() != 0) {
-    Serial.println("ESP-NOW init failed");
     return;
   }
   esp_now_set_self_role(ESP_NOW_ROLE_COMBO);
@@ -291,9 +298,8 @@ void setup() {
   esp_now_register_send_cb(OnDataSent);
   lastActionTime = millis();  
   updateDisplay();
-  Serial.println("Setup completed");
   loadMACs();
-  if (broadcastAddress[0][0] == 0 && broadcastAddress[0][1] == 0) {
+  if (tools==3 && broadcastAddress[0][0] == 0 && broadcastAddress[0][1] == 0) {
         uint8_t defaultMACs[3][6] = {
             {0x40, 0xF5, 0x20, 0x32, 0xCB, 0xED},
             {0x8C, 0xAA, 0xB5, 0x53, 0x20, 0x5A},
@@ -394,6 +400,7 @@ void loop() {
             display.clearDisplay();
             display.setCursor(0, 0);
             display.setTextSize(2);
+            saveMACs();
             display.println("Tool added:D\n... Check it");
             display.display();
             delay(1000);
@@ -438,9 +445,9 @@ void loop() {
           
         case 1:
           if (upPressed) {
-            capt = (capt + 1 + 6) % 6;
+            capt = (capt - 1 + 6) % 6;
           } else if (downPressed) {
-            capt = (capt - 1) % 6;
+            capt = (capt + 1) % 6;
           } else if (selectPressed) {
             if (capt <= 1) {
               screen = 2 + capt;
@@ -449,18 +456,18 @@ void loop() {
               screen = 3 + capt;
             }
             else if(capt>=3){
-              screen = 3+capt;
+              screen = 3 + capt;
             }
           }
           Serial.print(screen);
-          Serial.println(chosen);
           break;
           
         case 2:
-          if (upPressed && temperature<max_temp) {
+          
+          if (downPressed && temperature < max_temp){
             temperature--;
             myMessage.ts = temperature;
-          } else if (downPressed && temperature >min_temp) {
+          } else if (upPressed && temperature > min_temp) {
             temperature++;
             myMessage.ts = temperature;
           } else if (selectPressed) {
@@ -470,10 +477,10 @@ void loop() {
           
         case 3:
           if (upPressed) {
-            humidity = humidity < 100 ? humidity - 1 : 100;
+            humidity = humidity < 100 ? humidity + 1 : 100;
             myMessage.hum = humidity;
           } else if (downPressed) {
-            humidity = humidity > 0 ? humidity + 1 : 0;
+            humidity = humidity > 0 ? humidity - 1 : 0;
             myMessage.hum = humidity;
           } else if (selectPressed) {
             screen = 1;
@@ -495,13 +502,14 @@ void loop() {
             upPressed = buttonPressed(UP);
             selectPressed = buttonPressed(SELECT);
             downPressed = buttonPressed(DOWN);
-            joint+=upPressed-downPressed;
+            joint+=(upPressed-downPressed)%tools;
             display.clearDisplay();
             display.setCursor(0,0);
             display.println("Select Tool to delete...");
             display.setCursor(0,38);
             if(joint>=tools)
             {
+              Serial.println(joint);
               display.println("go back ^-^");
               if(joint>tools)
                 joint = 0;
@@ -530,12 +538,12 @@ void loop() {
           }
           }
           screen = 0;
+          saveMACs();
           break;
         case 7:
           screen = 0;
           break;
         case 8: //kids control - max t min t
-        Serial.println(WiFi.macAddress());
           int omt = max_temp;
           int omit = min_temp;
           max_temp = 0;
@@ -581,8 +589,13 @@ void loop() {
             }
           display.clearDisplay();
           display.setCursor(0,0);
-          display.println("well then\n((7+8)/2-1)*(1-12+30) = ?");
-          display.println("\nsel - 123.5\ndown - 143.11\nup - -122");
+          int random_summifier=random(9);
+          display.print("well then\n((7+");
+          display.print(random_summifier);
+          display.println(")/2-1)*(1-12+30) = ?");
+          display.print("\nsel - ");
+          display.print(((7+random_summifier)/2-1)*(1-12+30));
+          display.println("\ndown - 143.11\nup - -122");
           display.display();
           while(1)
           {
@@ -591,6 +604,18 @@ void loop() {
             downPressed = buttonPressed(DOWN);
             if(selectPressed)
             {
+              if(min_temp>max_temp)
+              {
+                int temp_min_temp = min_temp;
+                min_temp = max_temp;
+                max_temp = temp_min_temp;
+              }
+              if(max_temp<temperature){
+                temperature=max_temp;
+              }
+              if(min_temp>temperature){
+                temperature=min_temp;
+              }
               break;
             }
             else if(upPressed || downPressed)
@@ -601,6 +626,7 @@ void loop() {
             }
             delay(50);
           }
+          screen = 0;
           break;
       }
       if (screen != 5) {
