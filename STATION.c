@@ -25,6 +25,10 @@ typedef struct received_struct {
   int executor_id;
 } received_struct;
 
+struct MAc{
+  uint8_t mac[6];
+} mymac;
+
 typedef struct updata {
   double ts;
   double hum;
@@ -312,6 +316,11 @@ void setup() {
         }
         saveMACs();
     }
+    WiFi.macAddress(mymac.mac);
+    for (int i = 0; i < tools; i++) {
+            for (int j = 0; j < 6; j++) {
+      esp_now_send(broadcastAddress[i], (uint8_t *) &mymac, sizeof(mymac));
+    }}
 }
 void loop() {
   if (flag) {
@@ -398,8 +407,7 @@ void loop() {
             tools++;
             esp_now_add_peer(broadcastAddress[tools-1], ESP_NOW_ROLE_COMBO, 1, NULL, 0);
             display.clearDisplay();
-            display.setCursor(0, 0);
-            display.setTextSize(2);
+            display.setCursor(0, 5);
             saveMACs();
             display.println("Tool added:D\n... Check it");
             display.display();
@@ -459,7 +467,6 @@ void loop() {
               screen = 3 + capt;
             }
           }
-          Serial.print(screen);
           break;
           
         case 2:
@@ -503,6 +510,7 @@ void loop() {
             selectPressed = buttonPressed(SELECT);
             downPressed = buttonPressed(DOWN);
             joint+=(upPressed-downPressed)%tools;
+            joint = joint==255 ? tools: joint;
             display.clearDisplay();
             display.setCursor(0,0);
             display.println("Select Tool to delete...");
@@ -539,9 +547,6 @@ void loop() {
           }
           screen = 0;
           saveMACs();
-          break;
-        case 7:
-          screen = 0;
           break;
         case 8: //kids control - max t min t
           int omt = max_temp;
