@@ -12,22 +12,23 @@ int id = 1; //1 - cooler, 0 - heater, 2 - humidifier, 3 - dryer
 //0x40, 0xF5,0x20,0x32,0xCB,0xED
 //0xB4, 0xE6, 0x2D, 0x15, 0x03, 0xD7
 uint8_t broadcastAddress[] = {0x40, 0xF5,0x20,0x32,0xCB,0xED};
-typedef struct struct_message {
+struct struct_message {
   double ts;
   double press;
   int executor_id;
-} struct_message;
+} myData;
 
-typedef struct updata {
+struct updata {
   double ts;
   double hum;
   int adolf;
-} received_struct;
+};
+struct MAc{
+  uint8_t mac[6];
+} mastermac, borderlinemac;
+updata receivedValue = {30,60};
+updata receivedData = {30,60};
 
-struct_message myData;
-
-received_struct receivedValue = {30,60};
-received_struct receivedData = {30,60};
 void OnDataSent(uint8_t *mac_addr, uint8_t sendStatus) {
   if (sendStatus == 0) {
     Serial.println("Успешно отправлено!");
@@ -42,6 +43,14 @@ void OnDataRecv(uint8_t * mac, uint8_t *incomingData, uint8_t len) {
     myData.executor_id = receivedValue.adolf;
     Serial.print("теперь мой адрес ");
     Serial.println(myData.executor_id);
+  }
+  else if(len==sizeof(mastermac))
+  {
+    memcpy(&borderlinemac, incomingData, len);
+    mastermac = borderlinemac;
+    esp_now_del_peer(broadcastAddress);
+    for(int i = 0;i<6;++i){broadcastAddress[i]=mastermac.mac[i];}
+    esp_now_add_peer(broadcastAddress, ESP_NOW_ROLE_COMBO, 1, NULL, 0);
   }
 }
 
