@@ -2,7 +2,7 @@
 //4apr. DD.
 //22apr - DEADLINE.
 //E8:68:E7:C7:DC:D0 - microusb slave
-//0x40, 0xF5,0x20,0x32,0xCB,0xED - wtf, is it me??
+//0x40, 0xF5,0x20,0x32,0xCB,0xED - is it me??
 #include <ESP8266WiFi.h>
 #include <espnow.h>
 #include <Wire.h>
@@ -142,9 +142,9 @@ void updateDisplay() {
         display.print("TEMP: ");
         display.print(receivedData.ts, 1);
         display.println(" C");
-        display.print("PRES: ");
+        display.print("HUM: ");
         display.print(receivedData.press);
-        display.println(" hPa");
+        display.println(" %");
         display.setCursor(0, 30);
       }
       display.println("UP - Update data");
@@ -640,8 +640,8 @@ void loop() {
     }
   }
   
-  if (screen == 4) {
-    delay(2000);
+  if (screen == 4 || screen == 7) {
+    delay(screen ==7 ? 1 : 2000);
     screen = 0;
     updateDisplay();
   }
