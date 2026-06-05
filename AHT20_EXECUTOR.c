@@ -5,7 +5,7 @@
 #include <AHT20.h>
 AHT20 aht20;
 #define TOOL D5
-int id = 1; //1 - cooler, 0 - heater, 2 - humidifier, 3 - dryer
+int id = 1; //0 - cooler, 1 - heater, 2 - humidifier, 3 - dryer
 //A0 20 A6 11 C7 33
 //8C AA B5 53 20 5A the usb slave
 //Intrusion adress: 40 F5 20 32 CB ED
@@ -43,14 +43,17 @@ void OnDataRecv(uint8_t * mac, uint8_t *incomingData, uint8_t len) {
     myData.executor_id = receivedValue.adolf;
     Serial.print("теперь мой адрес ");
     Serial.println(myData.executor_id);
-  }
-  else if(len==sizeof(mastermac))
+    
+  }//8C:AA:B5:53:20:5A
+
+  else
   {
     memcpy(&borderlinemac, incomingData, len);
     mastermac = borderlinemac;
     esp_now_del_peer(broadcastAddress);
     for(int i = 0;i<6;++i){broadcastAddress[i]=mastermac.mac[i];}
     esp_now_add_peer(broadcastAddress, ESP_NOW_ROLE_COMBO, 1, NULL, 0);
+    for(int i = 0; i<6; i++){Serial.println(broadcastAddress[i]);}
   }
 }
 
@@ -78,11 +81,12 @@ void setup() {
 }
 
 void loop() {
+  for(int i = 0; i<6; i++){Serial.println(broadcastAddress[i]);}
   Serial.println(myData.executor_id);
   float tem = aht20.getTemperature();
   float hum = aht20.getHumidity();
   myData.press = hum;
-  myData.ts = tem; 
+  myData.ts = tem;
   esp_now_send(broadcastAddress, (uint8_t *) &myData, sizeof(myData));
   delay(5000);
   if(tem+0.5<receivedData.ts && id == 0)
@@ -93,5 +97,5 @@ void loop() {
     digitalWrite(TOOL,LOW);
   else if(tem>receivedData.ts-0.5 && id == 1)
     digitalWrite(TOOL,HIGH);
-  
+
 }
